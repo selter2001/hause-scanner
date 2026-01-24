@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ScanProgress, ScanProject, Room, Wall } from '@/types/scan';
+import { ScanProgress, ScanProject, Room, Wall, ROOM_COLORS } from '@/types/scan';
 
 export function useRoomPlanScanner() {
   const [scanProgress, setScanProgress] = useState<ScanProgress>({
@@ -11,6 +11,7 @@ export function useRoomPlanScanner() {
   });
 
   const [currentProject, setCurrentProject] = useState<ScanProject | null>(null);
+  const [scannedRoom, setScannedRoom] = useState<Room | null>(null);
 
   const startScan = useCallback(async () => {
     setScanProgress({
@@ -22,7 +23,6 @@ export function useRoomPlanScanner() {
       message: 'Point camera at walls...'
     });
 
-    // In production, this would call the native RoomPlan API via Capacitor plugin
     if (typeof (window as any).Capacitor !== 'undefined') {
       try {
         console.log('Native RoomPlan scan would start here');
@@ -35,7 +35,6 @@ export function useRoomPlanScanner() {
         }));
       }
     } else {
-      // Simulation for web preview
       simulateScan();
     }
   }, []);
@@ -53,14 +52,14 @@ export function useRoomPlanScanner() {
       if (progress >= 100) {
         clearInterval(interval);
         
-        const mockProject = generateMockProject();
-        setCurrentProject(mockProject);
+        const mockRoom = generateMockRoom(0);
+        setScannedRoom(mockRoom);
         
         setScanProgress({
           isScanning: false,
           progress: 100,
-          detectedWalls: mockProject.rooms[0].walls.length,
-          currentArea: mockProject.totalArea,
+          detectedWalls: mockRoom.walls.length,
+          currentArea: mockRoom.floor.area,
           status: 'complete',
           message: 'Scan complete!'
         });
@@ -88,7 +87,7 @@ export function useRoomPlanScanner() {
   }, []);
 
   const resetScan = useCallback(() => {
-    setCurrentProject(null);
+    setScannedRoom(null);
     setScanProgress({
       isScanning: false,
       progress: 0,
@@ -98,20 +97,69 @@ export function useRoomPlanScanner() {
     });
   }, []);
 
+  const addRoomToProject = useCallback((room: Room, projectId?: string) => {
+    setCurrentProject(prev => {
+      if (prev && prev.id === projectId) {
+        // Add room to existing project
+        const updatedRooms = [...prev.rooms, room];
+        const totalArea = updatedRooms.reduce((sum, r) => sum + r.floor.area, 0);
+        const totalWallArea = updatedRooms.reduce((sum, r) => sum + r.totalWallArea, 0);
+        
+        return {
+          ...prev,
+          rooms: updatedRooms,
+          totalArea: parseFloat(totalArea.toFixed(2)),
+          totalWallArea: parseFloat(totalWallArea.toFixed(2)),
+          updatedAt: new Date()
+        };
+      } else {
+        // Create new project with this room
+        return {
+          id: `project-${Date.now()}`,
+          name: 'New Project',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          rooms: [room],
+          totalArea: room.floor.area,
+          totalWallArea: room.totalWallArea
+        };
+      }
+    });
+  }, []);
+
+  const updateRoomPosition = useCallback((roomId: string, position: { x: number; y: number; rotation: number }) => {
+    setCurrentProject(prev => {
+      if (!prev) return prev;
+      
+      return {
+        ...prev,
+        rooms: prev.rooms.map(room => 
+          room.id === roomId 
+            ? { ...room, position }
+            : room
+        ),
+        updatedAt: new Date()
+      };
+    });
+  }, []);
+
   return {
     scanProgress,
     currentProject,
+    scannedRoom,
+    setCurrentProject,
     startScan,
     stopScan,
-    resetScan
+    resetScan,
+    addRoomToProject,
+    updateRoomPosition
   };
 }
 
-function generateMockProject(): ScanProject {
-  // Generate a realistic room shape (L-shaped room for variety)
-  const roomWidth = 4.2 + Math.random() * 1.5;
-  const roomDepth = 3.8 + Math.random() * 1.2;
-  const height = 2.65 + Math.random() * 0.2;
+function generateMockRoom(index: number): Room {
+  const roomWidth = 3.5 + Math.random() * 2.5;
+  const roomDepth = 3.0 + Math.random() * 2.0;
+  const height = 2.60 + Math.random() * 0.3;
 
   const vertices = [
     { x: 0, y: 0 },
@@ -147,8 +195,8 @@ function generateMockProject(): ScanProject {
   const perimeter = walls.reduce((sum, w) => sum + w.length, 0);
   const totalWallArea = walls.reduce((sum, w) => sum + w.area, 0);
 
-  const room: Room = {
-    id: 'room-1',
+  return {
+    id: `room-${Date.now()}-${index}`,
     name: 'New Room',
     walls,
     floor: {
@@ -160,16 +208,8 @@ function generateMockProject(): ScanProject {
       area: parseFloat(floorArea.toFixed(2))
     },
     totalWallArea: parseFloat(totalWallArea.toFixed(2)),
-    perimeter: parseFloat(perimeter.toFixed(2))
-  };
-
-  return {
-    id: `project-${Date.now()}`,
-    name: 'New Scan',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    rooms: [room],
-    totalArea: parseFloat(floorArea.toFixed(2)),
-    totalWallArea: parseFloat(totalWallArea.toFixed(2))
+    perimeter: parseFloat(perimeter.toFixed(2)),
+    position: { x: index * 6, y: 0, rotation: 0 },
+    color: ROOM_COLORS[index % ROOM_COLORS.length]
   };
 }

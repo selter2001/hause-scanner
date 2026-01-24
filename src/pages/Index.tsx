@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ScanProject, Room } from '@/types/scan';
+import { ScanProject, Room, ROOM_COLORS } from '@/types/scan';
 import { ProjectList } from '@/components/projects/ProjectList';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
 import { ScannerView } from '@/components/scanner/ScannerView';
@@ -14,9 +14,21 @@ const Index = () => {
   const [projects, setProjects] = useState<ScanProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<ScanProject | null>(null);
   
-  const { scanProgress, currentProject, startScan, stopScan, resetScan } = useRoomPlanScanner();
+  const { 
+    scanProgress, 
+    scannedRoom, 
+    startScan, 
+    stopScan, 
+    resetScan 
+  } = useRoomPlanScanner();
 
   const handleNewScan = useCallback(() => {
+    resetScan();
+    setCurrentView('scanner');
+  }, [resetScan]);
+
+  const handleNewScanForProject = useCallback(() => {
+    // Keep selected project but start new scan
     resetScan();
     setCurrentView('scanner');
   }, [resetScan]);
@@ -37,34 +49,85 @@ const Index = () => {
   }, [handleBackToList]);
 
   const handleScanComplete = useCallback(() => {
-    if (currentProject) {
+    if (scannedRoom) {
       setCurrentView('result');
     }
-  }, [currentProject]);
+  }, [scannedRoom]);
 
   const handleConfirmRoom = useCallback((roomName: string) => {
-    if (currentProject) {
+    if (!scannedRoom) return;
+
+    const roomIndex = selectedProject ? selectedProject.rooms.length : 0;
+    
+    const newRoom: Room = {
+      ...scannedRoom,
+      name: roomName,
+      color: ROOM_COLORS[roomIndex % ROOM_COLORS.length],
+      position: { 
+        x: roomIndex * 6, 
+        y: 0, 
+        rotation: 0 
+      }
+    };
+
+    if (selectedProject) {
+      // Add room to existing project
       const updatedProject: ScanProject = {
-        ...currentProject,
-        name: roomName,
-        rooms: currentProject.rooms.map((room, index) => 
-          index === 0 ? { ...room, name: roomName } : room
-        )
+        ...selectedProject,
+        rooms: [...selectedProject.rooms, newRoom],
+        totalArea: parseFloat((selectedProject.totalArea + newRoom.floor.area).toFixed(2)),
+        totalWallArea: parseFloat((selectedProject.totalWallArea + newRoom.totalWallArea).toFixed(2)),
+        updatedAt: new Date()
       };
-      setProjects(prev => [updatedProject, ...prev]);
+      
+      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
       setSelectedProject(updatedProject);
-      setCurrentView('detail');
-      resetScan();
+    } else {
+      // Create new project
+      const newProject: ScanProject = {
+        id: `project-${Date.now()}`,
+        name: roomName,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        rooms: [newRoom],
+        totalArea: newRoom.floor.area,
+        totalWallArea: newRoom.totalWallArea
+      };
+      
+      setProjects(prev => [newProject, ...prev]);
+      setSelectedProject(newProject);
     }
-  }, [currentProject, resetScan]);
+    
+    setCurrentView('detail');
+    resetScan();
+  }, [scannedRoom, selectedProject, resetScan]);
 
   const handleCancelResult = useCallback(() => {
     resetScan();
-    setCurrentView('list');
-  }, [resetScan]);
+    if (selectedProject) {
+      setCurrentView('detail');
+    } else {
+      setCurrentView('list');
+    }
+  }, [resetScan, selectedProject]);
+
+  const handleUpdateRoomPosition = useCallback((roomId: string, position: { x: number; y: number; rotation: number }) => {
+    if (!selectedProject) return;
+
+    const updatedProject: ScanProject = {
+      ...selectedProject,
+      rooms: selectedProject.rooms.map(room => 
+        room.id === roomId ? { ...room, position } : room
+      ),
+      updatedAt: new Date()
+    };
+
+    setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+    setSelectedProject(updatedProject);
+  }, [selectedProject]);
 
   // Check if scan just completed
-  if (scanProgress.status === 'complete' && currentProject && currentView === 'scanner') {
+  if (scanProgress.status === 'complete' && scannedRoom && currentView === 'scanner') {
     setTimeout(handleScanComplete, 500);
   }
 
@@ -88,7 +151,7 @@ const Index = () => {
           {/* Back button */}
           {!scanProgress.isScanning && scanProgress.status !== 'complete' && (
             <button
-              onClick={handleBackToList}
+              onClick={() => selectedProject ? setCurrentView('detail') : handleBackToList()}
               className="absolute top-4 left-4 p-3 glass-card rounded-xl safe-area-inset active:scale-95 transition-transform"
             >
               <ArrowLeft className="h-6 w-6 text-foreground" />
@@ -97,9 +160,10 @@ const Index = () => {
         </div>
       )}
 
-      {currentView === 'result' && currentProject && (
+      {currentView === 'result' && scannedRoom && (
         <ScanResult
-          room={currentProject.rooms[0]}
+          room={scannedRoom}
+          roomIndex={selectedProject ? selectedProject.rooms.length : 0}
           onConfirm={handleConfirmRoom}
           onCancel={handleCancelResult}
         />
@@ -110,6 +174,8 @@ const Index = () => {
           project={selectedProject}
           onBack={handleBackToList}
           onDelete={handleDeleteProject}
+          onAddRoom={handleNewScanForProject}
+          onUpdateRoomPosition={handleUpdateRoomPosition}
         />
       )}
     </div>

@@ -1,21 +1,27 @@
-import { ScanProject } from '@/types/scan';
-import { ArrowLeft, Map, Box, Share, Trash2, FileText } from 'lucide-react';
+import { ScanProject, Room, ROOM_COLORS } from '@/types/scan';
+import { ArrowLeft, Map, Box, Building2, Share, Trash2, FileText, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { FloorPlanView } from '../viewer/FloorPlanView';
 import { Room3DView } from '../viewer/Room3DView';
+import { BuildingPlanView } from '../viewer/BuildingPlanView';
 
 interface ProjectDetailProps {
   project: ScanProject;
   onBack: () => void;
   onDelete: (id: string) => void;
+  onAddRoom: () => void;
+  onUpdateRoomPosition: (roomId: string, position: { x: number; y: number; rotation: number }) => void;
 }
 
-type ViewMode = 'floor' | '3d';
+type ViewMode = 'building' | 'room2d' | 'room3d';
 
-export function ProjectDetail({ project, onBack, onDelete }: ProjectDetailProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('floor');
+export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRoomPosition }: ProjectDetailProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('building');
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(
+    project.rooms.length > 0 ? project.rooms[0].id : null
+  );
 
-  const room = project.rooms[0];
+  const selectedRoom = project.rooms.find(r => r.id === selectedRoomId);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -31,26 +37,37 @@ export function ProjectDetail({ project, onBack, onDelete }: ProjectDetailProps)
         {/* View mode toggle */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-muted">
           <button
-            onClick={() => setViewMode('floor')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              viewMode === 'floor'
+            onClick={() => setViewMode('building')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+              viewMode === 'building'
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground'
             }`}
           >
-            <Map className="h-4 w-4 inline mr-2" />
-            2D
+            <Building2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Plan</span>
           </button>
           <button
-            onClick={() => setViewMode('3d')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              viewMode === '3d'
+            onClick={() => setViewMode('room2d')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+              viewMode === 'room2d'
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground'
             }`}
           >
-            <Box className="h-4 w-4 inline mr-2" />
-            3D
+            <Map className="h-4 w-4" />
+            <span className="hidden sm:inline">2D</span>
+          </button>
+          <button
+            onClick={() => setViewMode('room3d')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+              viewMode === 'room3d'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground'
+            }`}
+          >
+            <Box className="h-4 w-4" />
+            <span className="hidden sm:inline">3D</span>
           </button>
         </div>
 
@@ -64,19 +81,86 @@ export function ProjectDetail({ project, onBack, onDelete }: ProjectDetailProps)
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {viewMode === 'floor' ? (
-          <FloorPlanView project={project} />
-        ) : (
-          <Room3DView project={project} />
+        {viewMode === 'building' && (
+          <BuildingPlanView 
+            project={project} 
+            onUpdateRoomPosition={onUpdateRoomPosition}
+            onAddRoom={onAddRoom}
+          />
+        )}
+        {viewMode === 'room2d' && selectedRoom && (
+          <div className="h-full flex flex-col">
+            {/* Room selector */}
+            {project.rooms.length > 1 && (
+              <div className="p-3 border-b border-border flex gap-2 overflow-x-auto">
+                {project.rooms.map((room, index) => (
+                  <button
+                    key={room.id}
+                    onClick={() => setSelectedRoomId(room.id)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                      selectedRoomId === room.id 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: ROOM_COLORS[index % ROOM_COLORS.length] }}
+                    />
+                    {room.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex-1">
+              <FloorPlanView project={{ ...project, rooms: [selectedRoom] }} />
+            </div>
+          </div>
+        )}
+        {viewMode === 'room3d' && selectedRoom && (
+          <div className="h-full flex flex-col">
+            {/* Room selector */}
+            {project.rooms.length > 1 && (
+              <div className="p-3 border-b border-border flex gap-2 overflow-x-auto">
+                {project.rooms.map((room, index) => (
+                  <button
+                    key={room.id}
+                    onClick={() => setSelectedRoomId(room.id)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                      selectedRoomId === room.id 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: ROOM_COLORS[index % ROOM_COLORS.length] }}
+                    />
+                    {room.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex-1">
+              <Room3DView project={{ ...project, rooms: [selectedRoom] }} />
+            </div>
+          </div>
         )}
       </div>
 
       {/* Bottom actions */}
       <div className="p-4 border-t border-border safe-area-inset">
         <div className="flex items-center gap-3">
+          <button 
+            onClick={onAddRoom}
+            className="flex-1 py-3 px-4 rounded-xl bg-accent/10 text-accent border border-accent/30 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="font-medium">Add Room</span>
+          </button>
           <button className="flex-1 py-3 px-4 rounded-xl premium-button flex items-center justify-center gap-2">
             <FileText className="h-4 w-4" />
-            <span className="font-medium">Export Report</span>
+            <span className="font-medium">Export</span>
           </button>
           <button 
             onClick={() => onDelete(project.id)}
