@@ -1,77 +1,52 @@
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment, Grid } from '@react-three/drei';
 import { ScanProject } from '@/types/scan';
-import { Suspense } from 'react';
-import { Box, RotateCcw, Move3D } from 'lucide-react';
+import { Box, RotateCcw, Move3D, Eye } from 'lucide-react';
+import { useState } from 'react';
 
 interface Room3DViewProps {
   project: ScanProject;
 }
 
-function RoomMesh({ project }: { project: ScanProject }) {
+export function Room3DView({ project }: Room3DViewProps) {
   const room = project.rooms[0];
+  const [rotation, setRotation] = useState({ x: 30, y: 45 });
+  const [scale, setScale] = useState(1);
+
   const vertices = room.floor.vertices;
-  
-  // Calculate center
   const centerX = vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length;
   const centerY = vertices.reduce((sum, v) => sum + v.y, 0) / vertices.length;
 
-  return (
-    <group position={[-centerX, 0, -centerY]}>
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[centerX, 0, centerY]}>
-        <planeGeometry args={[5, 4]} />
-        <meshStandardMaterial color="#e8e8e8" />
-      </mesh>
+  // Simple isometric projection
+  const project3D = (x: number, y: number, z: number) => {
+    const cos = Math.cos((rotation.y * Math.PI) / 180);
+    const sin = Math.sin((rotation.y * Math.PI) / 180);
+    const cosX = Math.cos((rotation.x * Math.PI) / 180);
+    const sinX = Math.sin((rotation.x * Math.PI) / 180);
 
-      {/* Walls */}
-      {room.walls.map((wall, i) => {
-        const start = vertices[i];
-        const end = vertices[(i + 1) % vertices.length];
-        
-        const length = Math.sqrt(
-          Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
-        );
-        
-        const midX = (start.x + end.x) / 2;
-        const midZ = (start.y + end.y) / 2;
-        
-        const angle = Math.atan2(end.y - start.y, end.x - start.x);
+    const rotatedX = (x - centerX) * cos - (y - centerY) * sin;
+    const rotatedY = (x - centerX) * sin + (y - centerY) * cos;
+    const rotatedZ = z;
 
-        return (
-          <mesh
-            key={wall.id}
-            position={[midX, room.ceiling.height / 2, midZ]}
-            rotation={[0, -angle, 0]}
-          >
-            <boxGeometry args={[length, room.ceiling.height, 0.15]} />
-            <meshStandardMaterial color="#f5f5f5" />
-          </mesh>
-        );
-      })}
+    const projectedX = rotatedX;
+    const projectedY = rotatedY * cosX - rotatedZ * sinX;
 
-      {/* Ceiling */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[centerX, room.ceiling.height, centerY]}>
-        <planeGeometry args={[5, 4]} />
-        <meshStandardMaterial color="#ffffff" />
-      </mesh>
-    </group>
-  );
-}
+    return {
+      x: 200 + projectedX * 30 * scale,
+      y: 200 - projectedY * 30 * scale
+    };
+  };
 
-function LoadingFallback() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-        <p className="text-sm text-muted-foreground">Ładowanie modelu 3D...</p>
-      </div>
-    </div>
-  );
-}
+  const floorPoints = vertices.map(v => project3D(v.x, v.y, 0));
+  const ceilingPoints = vertices.map(v => project3D(v.x, v.y, room.ceiling.height));
 
-export function Room3DView({ project }: Room3DViewProps) {
-  const room = project.rooms[0];
+  const floorPath = floorPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+  const ceilingPath = ceilingPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+
+  const handleRotate = (dx: number, dy: number) => {
+    setRotation(prev => ({
+      x: Math.max(0, Math.min(90, prev.x + dy)),
+      y: prev.y + dx
+    }));
+  };
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -88,40 +63,104 @@ export function Room3DView({ project }: Room3DViewProps) {
         </div>
       </div>
 
-      {/* 3D Canvas */}
-      <div className="flex-1 relative">
-        <Suspense fallback={<LoadingFallback />}>
-          <Canvas shadows>
-            <PerspectiveCamera makeDefault position={[8, 6, 8]} fov={50} />
-            <OrbitControls 
-              enablePan={true}
-              enableZoom={true}
-              enableRotate={true}
-              minDistance={3}
-              maxDistance={20}
-              maxPolarAngle={Math.PI / 2}
-            />
+      {/* 3D View */}
+      <div 
+        className="flex-1 relative overflow-hidden bg-gradient-to-b from-muted/30 to-muted/50"
+        onPointerDown={(e) => {
+          const startX = e.clientX;
+          const startY = e.clientY;
+          
+          const onMove = (moveEvent: PointerEvent) => {
+            const dx = (moveEvent.clientX - startX) * 0.5;
+            const dy = (moveEvent.clientY - startY) * 0.5;
+            handleRotate(dx, dy);
+          };
+          
+          const onUp = () => {
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+          };
+          
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onUp);
+        }}
+      >
+        <svg viewBox="0 0 400 400" className="w-full h-full">
+          {/* Grid */}
+          <defs>
+            <pattern id="grid3d" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--border))" strokeWidth="0.5"/>
+            </pattern>
+          </defs>
+          
+          {/* Floor */}
+          <path
+            d={floorPath}
+            fill="hsl(var(--muted))"
+            stroke="hsl(var(--border))"
+            strokeWidth="2"
+          />
+          
+          {/* Walls */}
+          {vertices.map((v, i) => {
+            const next = vertices[(i + 1) % vertices.length];
+            const p1 = project3D(v.x, v.y, 0);
+            const p2 = project3D(next.x, next.y, 0);
+            const p3 = project3D(next.x, next.y, room.ceiling.height);
+            const p4 = project3D(v.x, v.y, room.ceiling.height);
             
-            <ambientLight intensity={0.6} />
-            <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
-            <pointLight position={[0, 3, 0]} intensity={0.3} />
+            const wallPath = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} Z`;
             
-            <RoomMesh project={project} />
-            
-            <Grid 
-              position={[0, -0.01, 0]}
-              args={[20, 20]}
-              cellSize={1}
-              cellThickness={0.5}
-              cellColor="#ddd"
-              sectionSize={5}
-              sectionThickness={1}
-              sectionColor="#bbb"
-              fadeDistance={30}
-              fadeStrength={1}
-            />
-          </Canvas>
-        </Suspense>
+            return (
+              <path
+                key={i}
+                d={wallPath}
+                fill="hsl(var(--card))"
+                stroke="hsl(var(--foreground))"
+                strokeWidth="1.5"
+                opacity={0.9}
+              />
+            );
+          })}
+          
+          {/* Ceiling */}
+          <path
+            d={ceilingPath}
+            fill="hsl(var(--secondary))"
+            stroke="hsl(var(--border))"
+            strokeWidth="1"
+            opacity={0.5}
+          />
+          
+          {/* Room label */}
+          <text
+            x="200"
+            y="200"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="14"
+            fontWeight="600"
+            fill="hsl(var(--foreground))"
+          >
+            {room.name}
+          </text>
+        </svg>
+
+        {/* Controls */}
+        <div className="absolute top-4 right-4 flex flex-col gap-2">
+          <button
+            onClick={() => setScale(s => Math.min(s + 0.2, 2))}
+            className="p-3 glass-card rounded-xl active:scale-95 transition-transform"
+          >
+            <Eye className="h-5 w-5 text-foreground" />
+          </button>
+          <button
+            onClick={() => setRotation({ x: 30, y: 45 })}
+            className="p-3 glass-card rounded-xl active:scale-95 transition-transform"
+          >
+            <RotateCcw className="h-5 w-5 text-foreground" />
+          </button>
+        </div>
 
         {/* Controls hint */}
         <div className="absolute bottom-4 left-4 right-4">
@@ -133,7 +172,7 @@ export function Room3DView({ project }: Room3DViewProps) {
               </div>
               <div className="flex items-center gap-2">
                 <Move3D className="h-4 w-4" />
-                <span>Szczypnij = Zoom</span>
+                <span>Kąt: {rotation.x.toFixed(0)}° / {rotation.y.toFixed(0)}°</span>
               </div>
             </div>
           </div>
