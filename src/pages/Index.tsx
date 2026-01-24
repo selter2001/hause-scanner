@@ -6,6 +6,7 @@ import { ScannerView } from '@/components/scanner/ScannerView';
 import { ScanResult } from '@/components/scanner/ScanResult';
 import { useRoomPlanScanner } from '@/hooks/useRoomPlanScanner';
 import { ArrowLeft } from 'lucide-react';
+import { roundTo } from '@/lib/geometry';
 
 type AppView = 'list' | 'scanner' | 'result' | 'detail';
 
@@ -126,6 +127,28 @@ const Index = () => {
     setSelectedProject(updatedProject);
   }, [selectedProject]);
 
+  const handleUpdateRoom = useCallback((updatedRoom: Room) => {
+    if (!selectedProject) return;
+
+    const updatedRooms = selectedProject.rooms.map(room => 
+      room.id === updatedRoom.id ? updatedRoom : room
+    );
+
+    const totalArea = roundTo(updatedRooms.reduce((sum, r) => sum + r.floor.area, 0));
+    const totalWallArea = roundTo(updatedRooms.reduce((sum, r) => sum + r.totalWallArea, 0));
+
+    const updatedProject: ScanProject = {
+      ...selectedProject,
+      rooms: updatedRooms,
+      totalArea,
+      totalWallArea,
+      updatedAt: new Date()
+    };
+
+    setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+    setSelectedProject(updatedProject);
+  }, [selectedProject]);
+
   // Check if scan just completed
   if (scanProgress.status === 'complete' && scannedRoom && currentView === 'scanner') {
     setTimeout(handleScanComplete, 500);
@@ -176,6 +199,7 @@ const Index = () => {
           onDelete={handleDeleteProject}
           onAddRoom={handleNewScanForProject}
           onUpdateRoomPosition={handleUpdateRoomPosition}
+          onUpdateRoom={handleUpdateRoom}
         />
       )}
     </div>
