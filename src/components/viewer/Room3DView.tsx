@@ -17,13 +17,19 @@ export function Room3DView({ project }: Room3DViewProps) {
   const centerZ = room.ceiling.height / 2;
 
   // Calculate room dimensions for proper scaling
-  const maxDim = Math.max(
-    Math.max(...vertices.map(v => v.x)) - Math.min(...vertices.map(v => v.x)),
-    Math.max(...vertices.map(v => v.y)) - Math.min(...vertices.map(v => v.y)),
-    room.ceiling.height
-  );
+  const minX = Math.min(...vertices.map(v => v.x));
+  const maxX = Math.max(...vertices.map(v => v.x));
+  const minY = Math.min(...vertices.map(v => v.y));
+  const maxY = Math.max(...vertices.map(v => v.y));
   
-  const baseScale = 120 / maxDim;
+  const roomWidth = maxX - minX;
+  const roomDepth = maxY - minY;
+  const roomHeight = room.ceiling.height;
+  
+  const maxDim = Math.max(roomWidth, roomDepth, roomHeight);
+  
+  // Scale to fit nicely in the viewBox (300x300 usable area in 400x400 viewBox)
+  const baseScale = 80 / maxDim;
 
   // Isometric projection centered on room
   const project3D = (x: number, y: number, z: number) => {
@@ -32,7 +38,7 @@ export function Room3DView({ project }: Room3DViewProps) {
     const cosX = Math.cos((rotation.x * Math.PI) / 180);
     const sinX = Math.sin((rotation.x * Math.PI) / 180);
 
-    // Center the room
+    // Center the room around origin
     const cx = x - centerX;
     const cy = y - centerY;
     const cz = z - centerZ;
@@ -40,11 +46,9 @@ export function Room3DView({ project }: Room3DViewProps) {
     // Rotate around Y axis first
     const rotatedX = cx * cos - cy * sin;
     const rotatedY = cx * sin + cy * cos;
-    const rotatedZ = cz;
 
     // Then tilt (rotate around X axis)
-    const finalY = rotatedY * cosX - rotatedZ * sinX;
-    const finalZ = rotatedY * sinX + rotatedZ * cosX;
+    const finalY = rotatedY * cosX - cz * sinX;
 
     return {
       x: 200 + rotatedX * baseScale * scale,
