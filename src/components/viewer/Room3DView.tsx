@@ -16,43 +16,58 @@ export function Room3DView({ project }: Room3DViewProps) {
   const centerY = vertices.reduce((sum, v) => sum + v.y, 0) / vertices.length;
   const centerZ = room.ceiling.height / 2;
 
-  // Calculate room dimensions for proper scaling
-  const minX = Math.min(...vertices.map(v => v.x));
-  const maxX = Math.max(...vertices.map(v => v.x));
-  const minY = Math.min(...vertices.map(v => v.y));
-  const maxY = Math.max(...vertices.map(v => v.y));
-  
-  const roomWidth = maxX - minX;
-  const roomDepth = maxY - minY;
-  const roomHeight = room.ceiling.height;
-  
-  const maxDim = Math.max(roomWidth, roomDepth, roomHeight);
-  
-  // Scale to fit nicely in the viewBox (300x300 usable area in 400x400 viewBox)
-  const baseScale = 80 / maxDim;
+  // Auto-fit projection: compute projected bounds (floor + ceiling) and scale/center to viewBox
+  const VIEW_SIZE = 400;
+  const VIEW_CENTER = VIEW_SIZE / 2;
+  const VIEW_MARGIN = 56;
 
-  // Isometric projection centered on room
-  const project3D = (x: number, y: number, z: number) => {
+  const projectRaw = (x: number, y: number, z: number) => {
     const cos = Math.cos((rotation.y * Math.PI) / 180);
     const sin = Math.sin((rotation.y * Math.PI) / 180);
     const cosX = Math.cos((rotation.x * Math.PI) / 180);
     const sinX = Math.sin((rotation.x * Math.PI) / 180);
 
-    // Center the room around origin
     const cx = x - centerX;
     const cy = y - centerY;
     const cz = z - centerZ;
 
-    // Rotate around Y axis first
     const rotatedX = cx * cos - cy * sin;
     const rotatedY = cx * sin + cy * cos;
 
-    // Then tilt (rotate around X axis)
-    const finalY = rotatedY * cosX - cz * sinX;
+    // tilt: mix Y and Z into screen Y
+    const tiltedY = rotatedY * cosX - cz * sinX;
 
+    return { x: rotatedX, y: -tiltedY };
+  };
+
+  const roomHeight = room.ceiling.height;
+  const rawPoints = [
+    ...vertices.map(v => projectRaw(v.x, v.y, 0)),
+    ...vertices.map(v => projectRaw(v.x, v.y, roomHeight))
+  ];
+
+  const minPX = Math.min(...rawPoints.map(p => p.x));
+  const maxPX = Math.max(...rawPoints.map(p => p.x));
+  const minPY = Math.min(...rawPoints.map(p => p.y));
+  const maxPY = Math.max(...rawPoints.map(p => p.y));
+
+  const rawW = Math.max(1e-6, maxPX - minPX);
+  const rawH = Math.max(1e-6, maxPY - minPY);
+
+  const baseFitScale = Math.min(
+    (VIEW_SIZE - VIEW_MARGIN * 2) / rawW,
+    (VIEW_SIZE - VIEW_MARGIN * 2) / rawH
+  );
+
+  const fitScale = Number.isFinite(baseFitScale) ? baseFitScale : 1;
+  const midPX = (minPX + maxPX) / 2;
+  const midPY = (minPY + maxPY) / 2;
+
+  const project3D = (x: number, y: number, z: number) => {
+    const p = projectRaw(x, y, z);
     return {
-      x: 200 + rotatedX * baseScale * scale,
-      y: 200 - finalY * baseScale * scale
+      x: VIEW_CENTER + (p.x - midPX) * fitScale * scale,
+      y: VIEW_CENTER + (p.y - midPY) * fitScale * scale
     };
   };
 
