@@ -98,7 +98,7 @@ export function Room3DView({ project }: Room3DViewProps) {
   }).sort((a, b) => a.depth - b.depth);
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full min-h-0 bg-background">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3">
@@ -117,7 +117,7 @@ export function Room3DView({ project }: Room3DViewProps) {
 
       {/* 3D View */}
       <div 
-        className="flex-1 relative overflow-hidden bg-muted/10"
+        className="flex-1 min-h-0 relative overflow-hidden bg-muted/10"
         onPointerDown={(e) => {
           const startX = e.clientX;
           const startY = e.clientY;

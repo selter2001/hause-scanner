@@ -80,7 +80,7 @@ export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRo
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {viewMode === 'building' && (
           <BuildingPlanView 
             project={project} 
@@ -89,7 +89,7 @@ export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRo
           />
         )}
         {viewMode === 'room2d' && selectedRoom && (
-          <div className="h-full flex flex-col">
+          <div className="h-full min-h-0 flex flex-col">
             {/* Room selector */}
             {project.rooms.length > 1 && (
               <div className="p-3 border-b border-border flex gap-2 overflow-x-auto">
@@ -112,13 +112,13 @@ export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRo
                 ))}
               </div>
             )}
-            <div className="flex-1">
+            <div className="flex-1 min-h-0">
               <FloorPlanView project={{ ...project, rooms: [selectedRoom] }} />
             </div>
           </div>
         )}
         {viewMode === 'room3d' && selectedRoom && (
-          <div className="h-full flex flex-col">
+          <div className="h-full min-h-0 flex flex-col">
             {/* Room selector */}
             {project.rooms.length > 1 && (
               <div className="p-3 border-b border-border flex gap-2 overflow-x-auto">
@@ -141,7 +141,7 @@ export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRo
                 ))}
               </div>
             )}
-            <div className="flex-1">
+            <div className="flex-1 min-h-0">
               <Room3DView project={{ ...project, rooms: [selectedRoom] }} />
             </div>
           </div>
