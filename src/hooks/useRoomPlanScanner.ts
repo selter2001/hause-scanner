@@ -1,8 +1,6 @@
 import { useState, useCallback } from 'react';
 import { ScanProgress, ScanProject, Room, Wall } from '@/types/scan';
 
-// This hook provides the interface for RoomPlan scanning
-// The actual AR scanning happens via native iOS code
 export function useRoomPlanScanner() {
   const [scanProgress, setScanProgress] = useState<ScanProgress>({
     isScanning: false,
@@ -21,22 +19,19 @@ export function useRoomPlanScanner() {
       detectedWalls: 0,
       currentArea: 0,
       status: 'scanning',
-      message: 'Skieruj kamerę na ściany...'
+      message: 'Point camera at walls...'
     });
 
     // In production, this would call the native RoomPlan API via Capacitor plugin
-    // For now, we simulate the scanning process for UI development
     if (typeof (window as any).Capacitor !== 'undefined') {
       try {
-        // This would be the actual native call:
-        // const result = await RoomPlanPlugin.startScan();
         console.log('Native RoomPlan scan would start here');
       } catch (error) {
         console.error('RoomPlan error:', error);
         setScanProgress(prev => ({
           ...prev,
           status: 'error',
-          message: 'Błąd skanowania. Spróbuj ponownie.'
+          message: 'Scan failed. Please try again.'
         }));
       }
     } else {
@@ -52,8 +47,8 @@ export function useRoomPlanScanner() {
 
     const interval = setInterval(() => {
       progress += Math.random() * 5 + 2;
-      walls = Math.floor(progress / 15);
-      area = walls * (8 + Math.random() * 4);
+      walls = Math.floor(progress / 20);
+      area = walls * (6 + Math.random() * 4);
 
       if (progress >= 100) {
         clearInterval(interval);
@@ -67,7 +62,7 @@ export function useRoomPlanScanner() {
           detectedWalls: mockProject.rooms[0].walls.length,
           currentArea: mockProject.totalArea,
           status: 'complete',
-          message: 'Skanowanie zakończone!'
+          message: 'Scan complete!'
         });
       } else {
         setScanProgress({
@@ -76,7 +71,7 @@ export function useRoomPlanScanner() {
           detectedWalls: walls,
           currentArea: parseFloat(area.toFixed(1)),
           status: 'scanning',
-          message: walls > 0 ? `Wykryto ${walls} ścian...` : 'Szukam ścian...'
+          message: walls > 0 ? `Detected ${walls} walls...` : 'Searching for walls...'
         });
       }
     }, 200);
@@ -113,37 +108,68 @@ export function useRoomPlanScanner() {
 }
 
 function generateMockProject(): ScanProject {
-  const walls: Wall[] = [
-    { id: '1', start: { x: 0, y: 0, z: 0 }, end: { x: 5, y: 0, z: 0 }, height: 2.7, length: 5, area: 13.5 },
-    { id: '2', start: { x: 5, y: 0, z: 0 }, end: { x: 5, y: 0, z: 4 }, height: 2.7, length: 4, area: 10.8 },
-    { id: '3', start: { x: 5, y: 0, z: 4 }, end: { x: 0, y: 0, z: 4 }, height: 2.7, length: 5, area: 13.5 },
-    { id: '4', start: { x: 0, y: 0, z: 4 }, end: { x: 0, y: 0, z: 0 }, height: 2.7, length: 4, area: 10.8 }
+  // Generate a realistic room shape (L-shaped room for variety)
+  const roomWidth = 4.2 + Math.random() * 1.5;
+  const roomDepth = 3.8 + Math.random() * 1.2;
+  const height = 2.65 + Math.random() * 0.2;
+
+  const vertices = [
+    { x: 0, y: 0 },
+    { x: roomWidth, y: 0 },
+    { x: roomWidth, y: roomDepth },
+    { x: 0, y: roomDepth }
   ];
+
+  const walls: Wall[] = vertices.map((vertex, i) => {
+    const nextVertex = vertices[(i + 1) % vertices.length];
+    const length = Math.sqrt(
+      Math.pow(nextVertex.x - vertex.x, 2) + Math.pow(nextVertex.y - vertex.y, 2)
+    );
+    const wallArea = length * height;
+
+    return {
+      id: `wall-${i + 1}`,
+      start: { x: vertex.x, y: 0, z: vertex.y },
+      end: { x: nextVertex.x, y: 0, z: nextVertex.y },
+      height: parseFloat(height.toFixed(2)),
+      length: parseFloat(length.toFixed(2)),
+      area: parseFloat(wallArea.toFixed(2)),
+      corners: [
+        { x: vertex.x, y: 0, z: vertex.y },
+        { x: nextVertex.x, y: 0, z: nextVertex.y },
+        { x: nextVertex.x, y: height, z: nextVertex.y },
+        { x: vertex.x, y: height, z: vertex.y }
+      ]
+    };
+  });
+
+  const floorArea = roomWidth * roomDepth;
+  const perimeter = walls.reduce((sum, w) => sum + w.length, 0);
+  const totalWallArea = walls.reduce((sum, w) => sum + w.area, 0);
 
   const room: Room = {
     id: 'room-1',
-    name: 'Salon',
+    name: 'New Room',
     walls,
     floor: {
-      area: 20,
-      vertices: [
-        { x: 0, y: 0 },
-        { x: 5, y: 0 },
-        { x: 5, y: 4 },
-        { x: 0, y: 4 }
-      ]
+      area: parseFloat(floorArea.toFixed(2)),
+      vertices
     },
     ceiling: {
-      height: 2.7
-    }
+      height: parseFloat(height.toFixed(2)),
+      area: parseFloat(floorArea.toFixed(2))
+    },
+    totalWallArea: parseFloat(totalWallArea.toFixed(2)),
+    perimeter: parseFloat(perimeter.toFixed(2))
   };
 
   return {
     id: `project-${Date.now()}`,
-    name: 'Nowy skan',
+    name: 'New Scan',
     createdAt: new Date(),
     updatedAt: new Date(),
     rooms: [room],
-    totalArea: 20
+    totalArea: parseFloat(floorArea.toFixed(2)),
+    totalWallArea: parseFloat(totalWallArea.toFixed(2))
   };
 }

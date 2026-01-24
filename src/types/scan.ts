@@ -1,10 +1,18 @@
+export interface WallPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface Wall {
   id: string;
-  start: { x: number; y: number; z: number };
-  end: { x: number; y: number; z: number };
+  start: WallPoint;
+  end: WallPoint;
   height: number;
   length: number;
   area: number;
+  // Corner points for manual adjustment
+  corners: WallPoint[];
 }
 
 export interface Room {
@@ -17,7 +25,11 @@ export interface Room {
   };
   ceiling: {
     height: number;
+    area: number;
   };
+  // Calculated totals
+  totalWallArea: number;
+  perimeter: number;
 }
 
 export interface ScanProject {
@@ -27,6 +39,7 @@ export interface ScanProject {
   updatedAt: Date;
   rooms: Room[];
   totalArea: number;
+  totalWallArea: number;
   thumbnail?: string;
 }
 
@@ -37,4 +50,18 @@ export interface ScanProgress {
   currentArea: number;
   status: 'idle' | 'scanning' | 'processing' | 'complete' | 'error';
   message?: string;
+}
+
+export interface RoomMeasurements {
+  floorArea: number;
+  ceilingArea: number;
+  totalWallArea: number;
+  perimeter: number;
+  height: number;
+  walls: {
+    id: string;
+    length: number;
+    height: number;
+    area: number;
+  }[];
 }

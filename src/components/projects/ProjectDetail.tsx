@@ -1,5 +1,5 @@
 import { ScanProject } from '@/types/scan';
-import { ArrowLeft, Map, Box, Share, Trash2, Pencil } from 'lucide-react';
+import { ArrowLeft, Map, Box, Share, Trash2, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { FloorPlanView } from '../viewer/FloorPlanView';
 import { Room3DView } from '../viewer/Room3DView';
@@ -14,6 +14,8 @@ type ViewMode = 'floor' | '3d';
 
 export function ProjectDetail({ project, onBack, onDelete }: ProjectDetailProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('floor');
+
+  const room = project.rooms[0];
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -53,7 +55,7 @@ export function ProjectDetail({ project, onBack, onDelete }: ProjectDetailProps)
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button className="p-2 rounded-xl hover:bg-muted active:scale-95 transition-all">
             <Share className="h-5 w-5 text-foreground" />
           </button>
@@ -70,11 +72,11 @@ export function ProjectDetail({ project, onBack, onDelete }: ProjectDetailProps)
       </div>
 
       {/* Bottom actions */}
-      <div className="p-4 border-t border-border glass-card safe-area-inset">
+      <div className="p-4 border-t border-border safe-area-inset">
         <div className="flex items-center gap-3">
-          <button className="flex-1 py-3 px-4 rounded-xl bg-muted flex items-center justify-center gap-2 active:scale-95 transition-transform">
-            <Pencil className="h-4 w-4 text-foreground" />
-            <span className="font-medium text-foreground">Edytuj</span>
+          <button className="flex-1 py-3 px-4 rounded-xl premium-button flex items-center justify-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="font-medium">Export Report</span>
           </button>
           <button 
             onClick={() => onDelete(project.id)}

@@ -1,11 +1,13 @@
 import { useState, useCallback } from 'react';
-import { ScanProject } from '@/types/scan';
+import { ScanProject, Room } from '@/types/scan';
 import { ProjectList } from '@/components/projects/ProjectList';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
 import { ScannerView } from '@/components/scanner/ScannerView';
+import { ScanResult } from '@/components/scanner/ScanResult';
 import { useRoomPlanScanner } from '@/hooks/useRoomPlanScanner';
+import { ArrowLeft } from 'lucide-react';
 
-type AppView = 'list' | 'scanner' | 'detail';
+type AppView = 'list' | 'scanner' | 'result' | 'detail';
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<AppView>('list');
@@ -36,17 +38,34 @@ const Index = () => {
 
   const handleScanComplete = useCallback(() => {
     if (currentProject) {
-      setProjects(prev => [currentProject, ...prev]);
-      setSelectedProject(currentProject);
+      setCurrentView('result');
+    }
+  }, [currentProject]);
+
+  const handleConfirmRoom = useCallback((roomName: string) => {
+    if (currentProject) {
+      const updatedProject: ScanProject = {
+        ...currentProject,
+        name: roomName,
+        rooms: currentProject.rooms.map((room, index) => 
+          index === 0 ? { ...room, name: roomName } : room
+        )
+      };
+      setProjects(prev => [updatedProject, ...prev]);
+      setSelectedProject(updatedProject);
       setCurrentView('detail');
       resetScan();
     }
   }, [currentProject, resetScan]);
 
+  const handleCancelResult = useCallback(() => {
+    resetScan();
+    setCurrentView('list');
+  }, [resetScan]);
+
   // Check if scan just completed
   if (scanProgress.status === 'complete' && currentProject && currentView === 'scanner') {
-    // Auto-navigate after short delay to show completion message
-    setTimeout(handleScanComplete, 1000);
+    setTimeout(handleScanComplete, 500);
   }
 
   return (
@@ -72,12 +91,18 @@ const Index = () => {
               onClick={handleBackToList}
               className="absolute top-4 left-4 p-3 glass-card rounded-xl safe-area-inset active:scale-95 transition-transform"
             >
-              <svg className="h-6 w-6 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              <ArrowLeft className="h-6 w-6 text-foreground" />
             </button>
           )}
         </div>
+      )}
+
+      {currentView === 'result' && currentProject && (
+        <ScanResult
+          room={currentProject.rooms[0]}
+          onConfirm={handleConfirmRoom}
+          onCancel={handleCancelResult}
+        />
       )}
 
       {currentView === 'detail' && selectedProject && (
