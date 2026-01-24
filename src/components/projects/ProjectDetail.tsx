@@ -1,9 +1,10 @@
 import { ScanProject, Room, ROOM_COLORS } from '@/types/scan';
-import { ArrowLeft, Map, Box, Building2, Share, Trash2, FileText, Plus } from 'lucide-react';
+import { ArrowLeft, Map, Box, Building2, Share, Trash2, FileText, Plus, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { FloorPlanView } from '../viewer/FloorPlanView';
 import { Room3DView } from '../viewer/Room3DView';
 import { BuildingPlanView } from '../viewer/BuildingPlanView';
+import { FloorPlanEditor } from '../editor/FloorPlanEditor';
 
 interface ProjectDetailProps {
   project: ScanProject;
@@ -11,17 +12,46 @@ interface ProjectDetailProps {
   onDelete: (id: string) => void;
   onAddRoom: () => void;
   onUpdateRoomPosition: (roomId: string, position: { x: number; y: number; rotation: number }) => void;
+  onUpdateRoom?: (updatedRoom: Room) => void;
 }
 
-type ViewMode = 'building' | 'room2d' | 'room3d';
+type ViewMode = 'building' | 'room2d' | 'room3d' | 'edit';
 
-export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRoomPosition }: ProjectDetailProps) {
+export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRoomPosition, onUpdateRoom }: ProjectDetailProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('building');
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(
     project.rooms.length > 0 ? project.rooms[0].id : null
   );
 
   const selectedRoom = project.rooms.find(r => r.id === selectedRoomId);
+
+  const handleEditRoom = () => {
+    if (selectedRoom) {
+      setViewMode('edit');
+    }
+  };
+
+  const handleSaveRoom = (updatedRoom: Room) => {
+    if (onUpdateRoom) {
+      onUpdateRoom(updatedRoom);
+    }
+    setViewMode('room2d');
+  };
+
+  const handleCancelEdit = () => {
+    setViewMode('room2d');
+  };
+
+  // If in edit mode, show full-screen editor
+  if (viewMode === 'edit' && selectedRoom) {
+    return (
+      <FloorPlanEditor
+        room={selectedRoom}
+        onSave={handleSaveRoom}
+        onCancel={handleCancelEdit}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -73,6 +103,15 @@ export function ProjectDetail({ project, onBack, onDelete, onAddRoom, onUpdateRo
 
         {/* Actions */}
         <div className="flex items-center gap-1">
+          {(viewMode === 'room2d' || viewMode === 'room3d') && selectedRoom && (
+            <button 
+              onClick={handleEditRoom}
+              className="p-2 rounded-xl hover:bg-muted active:scale-95 transition-all"
+              title="Edit measurements"
+            >
+              <Pencil className="h-5 w-5 text-accent" />
+            </button>
+          )}
           <button className="p-2 rounded-xl hover:bg-muted active:scale-95 transition-all">
             <Share className="h-5 w-5 text-foreground" />
           </button>
