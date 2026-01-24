@@ -8,30 +8,47 @@ interface Room3DViewProps {
 
 export function Room3DView({ project }: Room3DViewProps) {
   const room = project.rooms[0];
-  const [rotation, setRotation] = useState({ x: 30, y: 45 });
+  const [rotation, setRotation] = useState({ x: 25, y: 45 });
   const [scale, setScale] = useState(1);
 
   const vertices = room.floor.vertices;
   const centerX = vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length;
   const centerY = vertices.reduce((sum, v) => sum + v.y, 0) / vertices.length;
+  const centerZ = room.ceiling.height / 2;
 
-  // Simple isometric projection
+  // Calculate room dimensions for proper scaling
+  const maxDim = Math.max(
+    Math.max(...vertices.map(v => v.x)) - Math.min(...vertices.map(v => v.x)),
+    Math.max(...vertices.map(v => v.y)) - Math.min(...vertices.map(v => v.y)),
+    room.ceiling.height
+  );
+  
+  const baseScale = 120 / maxDim;
+
+  // Isometric projection centered on room
   const project3D = (x: number, y: number, z: number) => {
     const cos = Math.cos((rotation.y * Math.PI) / 180);
     const sin = Math.sin((rotation.y * Math.PI) / 180);
     const cosX = Math.cos((rotation.x * Math.PI) / 180);
     const sinX = Math.sin((rotation.x * Math.PI) / 180);
 
-    const rotatedX = (x - centerX) * cos - (y - centerY) * sin;
-    const rotatedY = (x - centerX) * sin + (y - centerY) * cos;
-    const rotatedZ = z;
+    // Center the room
+    const cx = x - centerX;
+    const cy = y - centerY;
+    const cz = z - centerZ;
 
-    const projectedX = rotatedX;
-    const projectedY = rotatedY * cosX - rotatedZ * sinX;
+    // Rotate around Y axis first
+    const rotatedX = cx * cos - cy * sin;
+    const rotatedY = cx * sin + cy * cos;
+    const rotatedZ = cz;
+
+    // Then tilt (rotate around X axis)
+    const finalY = rotatedY * cosX - rotatedZ * sinX;
+    const finalZ = rotatedY * sinX + rotatedZ * cosX;
 
     return {
-      x: 200 + projectedX * 30 * scale,
-      y: 200 - projectedY * 30 * scale
+      x: 200 + rotatedX * baseScale * scale,
+      y: 200 - finalY * baseScale * scale
     };
   };
 
@@ -43,12 +60,23 @@ export function Room3DView({ project }: Room3DViewProps) {
 
   const handleRotate = (dx: number, dy: number) => {
     setRotation(prev => ({
-      x: Math.max(0, Math.min(90, prev.x + dy)),
-      y: prev.y + dx
+      x: Math.max(5, Math.min(85, prev.x + dy)),
+      y: (prev.y + dx) % 360
     }));
   };
 
-  const roomColor = room.color || 'hsl(var(--accent))';
+  const roomColor = room.color || 'hsl(142, 71%, 45%)';
+
+  // Sort walls by depth for proper rendering order
+  const wallsWithDepth = vertices.map((v, i) => {
+    const next = vertices[(i + 1) % vertices.length];
+    const midX = (v.x + next.x) / 2 - centerX;
+    const midY = (v.y + next.y) / 2 - centerY;
+    const cos = Math.cos((rotation.y * Math.PI) / 180);
+    const sin = Math.sin((rotation.y * Math.PI) / 180);
+    const depth = midX * sin + midY * cos;
+    return { v, next, i, depth };
+  }).sort((a, b) => a.depth - b.depth);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -70,15 +98,19 @@ export function Room3DView({ project }: Room3DViewProps) {
 
       {/* 3D View */}
       <div 
-        className="flex-1 relative overflow-hidden bg-muted/20"
+        className="flex-1 relative overflow-hidden bg-muted/10"
         onPointerDown={(e) => {
           const startX = e.clientX;
           const startY = e.clientY;
+          const startRotation = { ...rotation };
           
           const onMove = (moveEvent: PointerEvent) => {
-            const dx = (moveEvent.clientX - startX) * 0.5;
-            const dy = (moveEvent.clientY - startY) * 0.5;
-            handleRotate(dx, dy);
+            const dx = (moveEvent.clientX - startX) * 0.3;
+            const dy = (moveEvent.clientY - startY) * 0.3;
+            setRotation({
+              x: Math.max(5, Math.min(85, startRotation.x + dy)),
+              y: (startRotation.y + dx) % 360
+            });
           };
           
           const onUp = () => {
@@ -90,19 +122,18 @@ export function Room3DView({ project }: Room3DViewProps) {
           document.addEventListener('pointerup', onUp);
         }}
       >
-        <svg viewBox="0 0 400 400" className="w-full h-full">
+        <svg viewBox="0 0 400 400" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
           {/* Floor */}
           <path
             d={floorPath}
             fill={roomColor}
-            fillOpacity={0.15}
+            fillOpacity={0.2}
             stroke={roomColor}
             strokeWidth="2"
           />
           
-          {/* Walls */}
-          {vertices.map((v, i) => {
-            const next = vertices[(i + 1) % vertices.length];
+          {/* Walls - render back to front */}
+          {wallsWithDepth.map(({ v, next, i }) => {
             const p1 = project3D(v.x, v.y, 0);
             const p2 = project3D(next.x, next.y, 0);
             const p3 = project3D(next.x, next.y, room.ceiling.height);
@@ -110,9 +141,9 @@ export function Room3DView({ project }: Room3DViewProps) {
             
             const wallPath = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} Z`;
             
-            // Calculate wall center for measurement label
-            const wallCenterX = (p1.x + p2.x + p3.x + p4.x) / 4;
-            const wallCenterY = (p1.y + p2.y + p3.y + p4.y) / 4;
+            // Wall measurement label position
+            const labelX = (p1.x + p2.x) / 2;
+            const labelY = (p1.y + p2.y) / 2;
             const wallLength = room.walls[i]?.length || 0;
             
             return (
@@ -122,17 +153,15 @@ export function Room3DView({ project }: Room3DViewProps) {
                   fill="hsl(var(--card))"
                   stroke="hsl(var(--foreground))"
                   strokeWidth="1.5"
-                  opacity={0.85}
                 />
-                {/* Wall measurement */}
+                {/* Wall length at bottom edge */}
                 <text
-                  x={wallCenterX}
-                  y={wallCenterY}
+                  x={labelX}
+                  y={labelY + 12}
                   textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize="10"
-                  fontWeight="500"
-                  fill="hsl(var(--muted-foreground))"
+                  fontSize="11"
+                  fontWeight="600"
+                  fill={roomColor}
                 >
                   {wallLength}m
                 </text>
@@ -140,46 +169,57 @@ export function Room3DView({ project }: Room3DViewProps) {
             );
           })}
           
-          {/* Ceiling */}
+          {/* Ceiling - semi transparent */}
           <path
             d={ceilingPath}
-            fill="hsl(var(--secondary))"
+            fill="hsl(var(--muted))"
+            fillOpacity={0.3}
             stroke="hsl(var(--border))"
             strokeWidth="1"
-            opacity={0.4}
           />
           
-          {/* Room label */}
+          {/* Room label in center */}
           <text
             x="200"
-            y="200"
+            y="195"
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize="14"
-            fontWeight="600"
+            fontSize="16"
+            fontWeight="700"
             fill="hsl(var(--foreground))"
           >
             {room.name}
+          </text>
+          <text
+            x="200"
+            y="215"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="13"
+            fontWeight="600"
+            fill={roomColor}
+          >
+            {room.floor.area} m²
           </text>
         </svg>
 
         {/* Controls */}
         <div className="absolute top-4 right-4 flex flex-col gap-2">
           <button
-            onClick={() => setScale(s => Math.min(s + 0.2, 2))}
+            onClick={() => setScale(s => Math.min(s + 0.25, 2.5))}
             className="p-3 premium-card rounded-xl active:scale-95 transition-transform"
           >
             <ZoomIn className="h-5 w-5 text-foreground" />
           </button>
           <button
-            onClick={() => setScale(s => Math.max(s - 0.2, 0.5))}
+            onClick={() => setScale(s => Math.max(s - 0.25, 0.4))}
             className="p-3 premium-card rounded-xl active:scale-95 transition-transform"
           >
             <ZoomOut className="h-5 w-5 text-foreground" />
           </button>
           <button
             onClick={() => {
-              setRotation({ x: 30, y: 45 });
+              setRotation({ x: 25, y: 45 });
               setScale(1);
             }}
             className="p-3 premium-card rounded-xl active:scale-95 transition-transform"
@@ -196,10 +236,8 @@ export function Room3DView({ project }: Room3DViewProps) {
                 <Move3D className="h-4 w-4" />
                 <span>Drag to rotate</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">
-                  {rotation.x.toFixed(0)}° / {rotation.y.toFixed(0)}°
-                </span>
+              <div className="font-medium">
+                {rotation.x.toFixed(0)}° / {rotation.y.toFixed(0)}°
               </div>
             </div>
           </div>
