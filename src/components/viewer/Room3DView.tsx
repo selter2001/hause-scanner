@@ -1,5 +1,5 @@
 import { ScanProject } from '@/types/scan';
-import { Box, RotateCcw, Move3D, Eye } from 'lucide-react';
+import { Box, RotateCcw, Move3D, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState } from 'react';
 
 interface Room3DViewProps {
@@ -48,24 +48,29 @@ export function Room3DView({ project }: Room3DViewProps) {
     }));
   };
 
+  const roomColor = room.color || 'hsl(var(--accent))';
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="p-4 border-b border-border safe-area-inset">
+      <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-primary/10">
-            <Box className="h-5 w-5 text-primary" />
+          <div 
+            className="p-2 rounded-xl" 
+            style={{ backgroundColor: `${roomColor}20` }}
+          >
+            <Box className="h-5 w-5" style={{ color: roomColor }} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Podgląd 3D</h2>
-            <p className="text-sm text-muted-foreground">{project.name}</p>
+            <h2 className="text-lg font-semibold text-foreground">3D View</h2>
+            <p className="text-sm text-muted-foreground">{room.name} • {room.floor.area} m²</p>
           </div>
         </div>
       </div>
 
       {/* 3D View */}
       <div 
-        className="flex-1 relative overflow-hidden bg-gradient-to-b from-muted/30 to-muted/50"
+        className="flex-1 relative overflow-hidden bg-muted/20"
         onPointerDown={(e) => {
           const startX = e.clientX;
           const startY = e.clientY;
@@ -86,18 +91,12 @@ export function Room3DView({ project }: Room3DViewProps) {
         }}
       >
         <svg viewBox="0 0 400 400" className="w-full h-full">
-          {/* Grid */}
-          <defs>
-            <pattern id="grid3d" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--border))" strokeWidth="0.5"/>
-            </pattern>
-          </defs>
-          
           {/* Floor */}
           <path
             d={floorPath}
-            fill="hsl(var(--muted))"
-            stroke="hsl(var(--border))"
+            fill={roomColor}
+            fillOpacity={0.15}
+            stroke={roomColor}
             strokeWidth="2"
           />
           
@@ -111,15 +110,33 @@ export function Room3DView({ project }: Room3DViewProps) {
             
             const wallPath = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} Z`;
             
+            // Calculate wall center for measurement label
+            const wallCenterX = (p1.x + p2.x + p3.x + p4.x) / 4;
+            const wallCenterY = (p1.y + p2.y + p3.y + p4.y) / 4;
+            const wallLength = room.walls[i]?.length || 0;
+            
             return (
-              <path
-                key={i}
-                d={wallPath}
-                fill="hsl(var(--card))"
-                stroke="hsl(var(--foreground))"
-                strokeWidth="1.5"
-                opacity={0.9}
-              />
+              <g key={i}>
+                <path
+                  d={wallPath}
+                  fill="hsl(var(--card))"
+                  stroke="hsl(var(--foreground))"
+                  strokeWidth="1.5"
+                  opacity={0.85}
+                />
+                {/* Wall measurement */}
+                <text
+                  x={wallCenterX}
+                  y={wallCenterY}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="10"
+                  fontWeight="500"
+                  fill="hsl(var(--muted-foreground))"
+                >
+                  {wallLength}m
+                </text>
+              </g>
             );
           })}
           
@@ -129,7 +146,7 @@ export function Room3DView({ project }: Room3DViewProps) {
             fill="hsl(var(--secondary))"
             stroke="hsl(var(--border))"
             strokeWidth="1"
-            opacity={0.5}
+            opacity={0.4}
           />
           
           {/* Room label */}
@@ -150,13 +167,22 @@ export function Room3DView({ project }: Room3DViewProps) {
         <div className="absolute top-4 right-4 flex flex-col gap-2">
           <button
             onClick={() => setScale(s => Math.min(s + 0.2, 2))}
-            className="p-3 glass-card rounded-xl active:scale-95 transition-transform"
+            className="p-3 premium-card rounded-xl active:scale-95 transition-transform"
           >
-            <Eye className="h-5 w-5 text-foreground" />
+            <ZoomIn className="h-5 w-5 text-foreground" />
           </button>
           <button
-            onClick={() => setRotation({ x: 30, y: 45 })}
-            className="p-3 glass-card rounded-xl active:scale-95 transition-transform"
+            onClick={() => setScale(s => Math.max(s - 0.2, 0.5))}
+            className="p-3 premium-card rounded-xl active:scale-95 transition-transform"
+          >
+            <ZoomOut className="h-5 w-5 text-foreground" />
+          </button>
+          <button
+            onClick={() => {
+              setRotation({ x: 30, y: 45 });
+              setScale(1);
+            }}
+            className="p-3 premium-card rounded-xl active:scale-95 transition-transform"
           >
             <RotateCcw className="h-5 w-5 text-foreground" />
           </button>
@@ -167,12 +193,13 @@ export function Room3DView({ project }: Room3DViewProps) {
           <div className="glass-card p-3 rounded-xl">
             <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
               <div className="flex items-center gap-2">
-                <RotateCcw className="h-4 w-4" />
-                <span>Przeciągnij = Obróć</span>
+                <Move3D className="h-4 w-4" />
+                <span>Drag to rotate</span>
               </div>
               <div className="flex items-center gap-2">
-                <Move3D className="h-4 w-4" />
-                <span>Kąt: {rotation.x.toFixed(0)}° / {rotation.y.toFixed(0)}°</span>
+                <span className="font-medium">
+                  {rotation.x.toFixed(0)}° / {rotation.y.toFixed(0)}°
+                </span>
               </div>
             </div>
           </div>
@@ -180,19 +207,23 @@ export function Room3DView({ project }: Room3DViewProps) {
       </div>
 
       {/* Room stats */}
-      <div className="p-4 border-t border-border glass-card safe-area-inset">
-        <div className="grid grid-cols-3 gap-4 text-center">
+      <div className="p-4 border-t border-border">
+        <div className="grid grid-cols-4 gap-3 text-center">
           <div>
-            <p className="text-2xl font-bold text-foreground">{room.walls.length}</p>
-            <p className="text-xs text-muted-foreground">Ściany</p>
+            <p className="text-xl font-bold text-foreground">{room.walls.length}</p>
+            <p className="text-xs text-muted-foreground">Walls</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-primary">{room.floor.area} m²</p>
-            <p className="text-xs text-muted-foreground">Powierzchnia</p>
+            <p className="text-xl font-bold" style={{ color: roomColor }}>{room.floor.area} m²</p>
+            <p className="text-xs text-muted-foreground">Floor</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-foreground">{room.ceiling.height}m</p>
-            <p className="text-xs text-muted-foreground">Wysokość</p>
+            <p className="text-xl font-bold text-foreground">{room.totalWallArea} m²</p>
+            <p className="text-xs text-muted-foreground">Walls</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-foreground">{room.ceiling.height}m</p>
+            <p className="text-xs text-muted-foreground">Height</p>
           </div>
         </div>
       </div>

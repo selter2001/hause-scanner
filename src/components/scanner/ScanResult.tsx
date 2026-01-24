@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { Room } from '@/types/scan';
+import { Room, ROOM_COLORS } from '@/types/scan';
 import { Check, X, Ruler, Square, ArrowUpDown, Grid3X3 } from 'lucide-react';
 
 interface ScanResultProps {
   room: Room;
+  roomIndex: number;
   onConfirm: (roomName: string) => void;
   onCancel: () => void;
 }
 
-export function ScanResult({ room, onConfirm, onCancel }: ScanResultProps) {
+export function ScanResult({ room, roomIndex, onConfirm, onCancel }: ScanResultProps) {
   const [roomName, setRoomName] = useState(room.name);
 
-  const quickNames = ['Living Room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office', 'Hallway'];
+  const quickNames = ['Living Room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office', 'Hallway', 'Dining Room', 'Storage'];
+
+  const roomColor = ROOM_COLORS[roomIndex % ROOM_COLORS.length];
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -33,6 +36,17 @@ export function ScanResult({ room, onConfirm, onCancel }: ScanResultProps) {
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-6">
+        {/* Room color indicator */}
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+          <div 
+            className="w-4 h-4 rounded-full" 
+            style={{ backgroundColor: roomColor }}
+          />
+          <span className="text-sm text-muted-foreground">
+            Room #{roomIndex + 1} in project
+          </span>
+        </div>
+
         {/* Room Name Input */}
         <div className="space-y-3">
           <label className="text-sm font-medium text-foreground">Room Name</label>
@@ -156,7 +170,7 @@ export function ScanResult({ room, onConfirm, onCancel }: ScanResultProps) {
           onClick={() => onConfirm(roomName)}
           className="w-full py-4 rounded-xl premium-button text-center font-semibold"
         >
-          Save Room
+          Add to Project
         </button>
       </div>
     </div>

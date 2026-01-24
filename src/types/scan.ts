@@ -11,8 +11,13 @@ export interface Wall {
   height: number;
   length: number;
   area: number;
-  // Corner points for manual adjustment
   corners: WallPoint[];
+}
+
+export interface RoomPosition {
+  x: number;
+  y: number;
+  rotation: number; // degrees
 }
 
 export interface Room {
@@ -27,9 +32,11 @@ export interface Room {
     height: number;
     area: number;
   };
-  // Calculated totals
   totalWallArea: number;
   perimeter: number;
+  // Position on the building plan
+  position: RoomPosition;
+  color: string;
 }
 
 export interface ScanProject {
@@ -65,3 +72,15 @@ export interface RoomMeasurements {
     area: number;
   }[];
 }
+
+// Room colors for visual distinction
+export const ROOM_COLORS = [
+  'hsl(142, 71%, 45%)',  // Green
+  'hsl(210, 100%, 50%)', // Blue
+  'hsl(280, 70%, 50%)',  // Purple
+  'hsl(30, 90%, 50%)',   // Orange
+  'hsl(340, 80%, 50%)',  // Pink
+  'hsl(180, 70%, 45%)',  // Cyan
+  'hsl(60, 80%, 45%)',   // Yellow
+  'hsl(0, 70%, 50%)',    // Red
+];
