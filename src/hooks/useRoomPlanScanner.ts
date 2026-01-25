@@ -1,5 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ScanProgress, ScanProject, Room, Wall, ROOM_COLORS } from '@/types/scan';
+import { Capacitor } from '@capacitor/core';
+import RoomPlanPlugin, { RoomPlanResult } from '@/plugins/RoomPlanPlugin';
 
 export function useRoomPlanScanner() {
   const [scanProgress, setScanProgress] = useState<ScanProgress>({
@@ -12,6 +14,63 @@ export function useRoomPlanScanner() {
 
   const [currentProject, setCurrentProject] = useState<ScanProject | null>(null);
   const [scannedRoom, setScannedRoom] = useState<Room | null>(null);
+  const [isNativeAvailable, setIsNativeAvailable] = useState(false);
+
+  // Check if native RoomPlan is available on startup
+  useEffect(() => {
+    const checkSupport = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const result = await RoomPlanPlugin.isSupported();
+          setIsNativeAvailable(result.supported);
+          console.log('RoomPlan support:', result);
+        } catch (error) {
+          console.log('RoomPlan not available:', error);
+          setIsNativeAvailable(false);
+        }
+      }
+    };
+    checkSupport();
+  }, []);
+
+  // Listen for scan complete events from native
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const setupListener = async () => {
+      try {
+        const listener = await RoomPlanPlugin.addListener('scanComplete', async (event) => {
+          console.log('Scan complete event:', event);
+          
+          // Get full results from native
+          try {
+            const results = await RoomPlanPlugin.getResults();
+            const room = convertNativeResultToRoom(results);
+            setScannedRoom(room);
+            
+            setScanProgress({
+              isScanning: false,
+              progress: 100,
+              detectedWalls: results.measurements.wallCount,
+              currentArea: results.measurements.totalFloorArea,
+              status: 'complete',
+              message: 'Scan complete!'
+            });
+          } catch (error) {
+            console.error('Error getting results:', error);
+          }
+        });
+
+        return () => {
+          listener.remove();
+        };
+      } catch (error) {
+        console.log('Could not set up listener:', error);
+      }
+    };
+
+    setupListener();
+  }, []);
 
   const startScan = useCallback(async () => {
     setScanProgress({
@@ -20,24 +79,29 @@ export function useRoomPlanScanner() {
       detectedWalls: 0,
       currentArea: 0,
       status: 'scanning',
-      message: 'Point camera at walls...'
+      message: 'Skieruj kamerę na ściany...'
     });
 
-    if (typeof (window as any).Capacitor !== 'undefined') {
+    if (Capacitor.isNativePlatform() && isNativeAvailable) {
       try {
-        console.log('Native RoomPlan scan would start here');
+        console.log('Starting native RoomPlan scan...');
+        await RoomPlanPlugin.startScan();
+        // Native scan started - the UI overlay is handled by native code
+        // Progress will be simulated, completion comes from native event
       } catch (error) {
         console.error('RoomPlan error:', error);
         setScanProgress(prev => ({
           ...prev,
           status: 'error',
-          message: 'Scan failed. Please try again.'
+          message: 'Skanowanie nie powiodło się. Spróbuj ponownie.'
         }));
       }
     } else {
+      // Web fallback - simulate scan
+      console.log('Using simulated scan (web mode)');
       simulateScan();
     }
-  }, []);
+  }, [isNativeAvailable]);
 
   const simulateScan = useCallback(() => {
     let progress = 0;
@@ -76,7 +140,14 @@ export function useRoomPlanScanner() {
     }, 200);
   }, []);
 
-  const stopScan = useCallback(() => {
+  const stopScan = useCallback(async () => {
+    if (Capacitor.isNativePlatform() && isNativeAvailable) {
+      try {
+        await RoomPlanPlugin.stopScan();
+      } catch (error) {
+        console.error('Error stopping scan:', error);
+      }
+    }
     setScanProgress({
       isScanning: false,
       progress: 0,
@@ -84,7 +155,7 @@ export function useRoomPlanScanner() {
       currentArea: 0,
       status: 'idle'
     });
-  }, []);
+  }, [isNativeAvailable]);
 
   const resetScan = useCallback(() => {
     setScannedRoom(null);
@@ -156,6 +227,45 @@ export function useRoomPlanScanner() {
   };
 }
 
+// Convert native RoomPlan results to our Room type
+function convertNativeResultToRoom(results: RoomPlanResult): Room {
+  const walls: Wall[] = results.walls.map((wall, i) => ({
+    id: wall.id,
+    start: { x: wall.corners[0]?.x || 0, y: 0, z: wall.corners[0]?.z || 0 },
+    end: { x: wall.corners[1]?.x || 0, y: 0, z: wall.corners[1]?.z || 0 },
+    height: wall.height,
+    length: wall.length,
+    area: wall.area,
+    corners: wall.corners.map(c => ({ x: c.x, y: c.y, z: c.z }))
+  }));
+
+  const floor = results.floors[0];
+  const vertices = floor?.vertices || [
+    { x: 0, y: 0 },
+    { x: 4, y: 0 },
+    { x: 4, y: 4 },
+    { x: 0, y: 4 }
+  ];
+
+  return {
+    id: `room-${Date.now()}`,
+    name: 'Nowy pokój',
+    walls,
+    floor: {
+      area: results.measurements.totalFloorArea,
+      vertices
+    },
+    ceiling: {
+      height: results.measurements.height,
+      area: results.measurements.ceilingArea
+    },
+    totalWallArea: results.measurements.totalWallArea,
+    perimeter: results.measurements.perimeter,
+    position: { x: 0, y: 0, rotation: 0 },
+    color: ROOM_COLORS[0]
+  };
+}
+
 function generateMockRoom(index: number): Room {
   const roomWidth = 3.5 + Math.random() * 2.5;
   const roomDepth = 3.0 + Math.random() * 2.0;
@@ -197,7 +307,7 @@ function generateMockRoom(index: number): Room {
 
   return {
     id: `room-${Date.now()}-${index}`,
-    name: 'New Room',
+    name: 'Nowy pokój',
     walls,
     floor: {
       area: parseFloat(floorArea.toFixed(2)),
