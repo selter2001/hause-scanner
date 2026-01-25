@@ -104,11 +104,23 @@
     @apply border-border;
   }
 
+  html {
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
+  #root {
+    min-height: 100%;
+    min-height: 100dvh;
   }
 }
 

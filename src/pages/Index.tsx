@@ -155,7 +155,7 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background">
+    <div className="min-h-screen min-h-dvh w-screen overflow-hidden bg-background" style={{ minHeight: '100dvh' }}>
       {currentView === 'list' && (
         <ProjectList
           projects={projects}
