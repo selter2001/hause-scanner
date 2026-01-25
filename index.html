@@ -2,10 +2,11 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#1a1a1a" />
+    <meta name="theme-color" content="#fafafa" />
+    <meta name="format-detection" content="telephone=no" />
     
     <title>House Scanner - Professional Room Scanning</title>
     <meta name="description" content="Professional room scanning app for construction companies. Measure rooms, calculate areas, and create 2D/3D floor plans with precision." />
@@ -26,6 +27,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+      /* Prevent flash of unstyled content and ensure visibility on iOS */
+      html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        min-height: 100dvh;
+        background-color: #fafafa;
+        -webkit-overflow-scrolling: touch;
+      }
+      #root {
+        min-height: 100%;
+        min-height: 100dvh;
+        background-color: #fafafa;
+      }
+    </style>
   </head>
 
   <body>
